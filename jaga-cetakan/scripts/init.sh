@@ -64,7 +64,7 @@ check_preflight() {
   echo "OK, helm validated"
   echo
   echo "Making sure helm secrets (helm plugin) is installed"
-  helm secrets || die_check "helm secrets plugin is not installed. Please install: https://github.com/jkroepke/helm-secrets"
+  helm secrets version || die_check "helm secrets plugin is not installed. Please install: https://github.com/jkroepke/helm-secrets"
   echo "OK, helm secrets plugin validated"
   echo
 
