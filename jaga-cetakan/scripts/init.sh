@@ -11,7 +11,7 @@ GO_ARCHETYPE_VERSION="0.1.11"
 
 die () {
     echo >&2 "$@"
-    echo >&2 "Usage: $0 project-name"
+    echo >&2 "Usage: $0 action-name monorepo-name"
     exit 1
 }
 
@@ -115,17 +115,29 @@ exec_go_archetype() {
   local PROJECT_YEAR
   PROJECT_YEAR=$(date +%Y)
 
-  LOG_LEVEL=info ${GO_ARCHETYPE} \
-  		transform \
-  		--transformations=transformations.yml \
-  		--source=. \
-  		--destination="${DESTINATION}" \
-  		-- \
-  		--project_year="${PROJECT_YEAR}" \
-  		--project_repo_path="${PROJECT_REPO_PATH}" \
-  		--codeowners="${CODEOWNERS}" \
-  		--project_timezone="${TIMEZONE}"\
-  		--business_unit="${BUSINESS_UNIT}"
+  if [[ $ACTION_NAME ==  "monorepo" ]]
+  then
+    LOG_LEVEL=info ${GO_ARCHETYPE} \
+        transform \
+        --transformations=transformations.yml \
+        --source=. \
+        --destination="${DESTINATION}" \
+        -- \
+        --project_year="${PROJECT_YEAR}" \
+        --project_repo_path="${PROJECT_REPO_PATH}" \
+        --codeowners="${CODEOWNERS}" \
+        --project_timezone="${TIMEZONE}"\
+        --business_unit="${BUSINESS_UNIT}"
+  elif [[ $ACTION_NAME ==  "app" ]]
+  then
+    LOG_LEVEL=info ${GO_ARCHETYPE} \
+      transform \
+      --transformations=transformations.yml \
+      --source=. \
+      --destination="${DESTINATION}"
+  else
+    die "monorepo / app argument needed"
+  fi
   popd
 }
 
@@ -140,18 +152,46 @@ exec_git() {
   { echo "git remote add origin"; cat GIT.md; } | tr "\n" " " | sh
 }
 
-[ "$#" -eq 1 ] || die "1 arguments required, only $# provided"
+code_tobe_added() {
+  echo ""
+  echo ""
+  echo "##################################"
+  cat $DESTINATION/code_tobe_added.txt
+  echo ""
+  echo "##################################"
+  echo ""
+}
+
+[ "$#" -eq 2 ] || die "2 arguments required, only $# provided"
 
 TMP_DIR="$(mktemp -d)"
-PROJECT_NAME=$1
-DESTINATION=`pwd`/${PROJECT_NAME:?}
+ACTION_NAME=$1
+PROJECT_NAME=$2
 GIT_REPO_NAME=$(echo "${TEMPLATE_ADDRESS:?}" | awk -F'\/' '{print $NF}' | awk -F"\."  '{$NF=""; print $0}')
-TEMPLATE_PATH="${TMP_DIR:?}/${GIT_REPO_NAME:?}/template"
+if [[ $ACTION_NAME ==  "monorepo" ]]
+then
+  DESTINATION=`pwd`/${PROJECT_NAME:?}
+  TEMPLATE_PATH="${TMP_DIR:?}/${GIT_REPO_NAME:?}/template"
+elif [[ $ACTION_NAME ==  "app" ]]
+then
+  DESTINATION=`pwd`/__new_app__
+  TEMPLATE_PATH="${TMP_DIR:?}/${GIT_REPO_NAME:?}/template-new-app"
+else
+  die "monorepo / app argument needed"
+fi
+CURRENT_WORKDIR=`pwd`
 
 check_preflight
 clone_template
 check_go_archetype
 exec_go_archetype
-exec_git
+
+if [[ $ACTION_NAME ==  "monorepo" ]]
+then
+  exec_git
+else
+  code_tobe_added
+  rm -rf $DESTINATION
+fi
 
 trap cleanup EXIT
